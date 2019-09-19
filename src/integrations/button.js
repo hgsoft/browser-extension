@@ -179,7 +179,8 @@ function setButtonProperties(button, title, active) {
         button.classList.remove('clockify-button-inactive');
         button.classList.add('clockify-button-active');
         if (!button.classList.contains('small')) {
-            button.textContent = 'Stop timer';
+            //button.textContent = 'Stop timer';
+            button.textContent = 'Parar cronômetro';
             button.setAttribute('id', 'clockifyButton');
         } else {
             button.setAttribute('id', 'clockifySmallButton');
@@ -188,7 +189,8 @@ function setButtonProperties(button, title, active) {
         button.classList.remove('clockify-button-active');
         button.classList.add('clockify-button-inactive');
         if (!button.classList.contains('small')) {
-            button.textContent = 'Start timer';
+            //button.textContent = 'Start timer';
+            button.textContent = 'Iniciar cronômetro';
             button.setAttribute('id', 'clockifyButton');
         } else {
             button.setAttribute('id', 'clockifySmallButton');
