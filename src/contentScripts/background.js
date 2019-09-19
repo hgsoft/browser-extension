@@ -1,15 +1,5 @@
 let aBrowser = this.isChrome() ? chrome : browser;
 
-function isChrome() {
-    if (typeof chrome !== "undefined") {
-        if (typeof browser !== "undefined") {
-            return false;
-        } else {
-            return true;
-        }
-    }
-}
-
 const iconPathEnded = '../assets/images/logo-16-gray.png';
 const iconPathStarted = '../assets/images/logo-16.png';
 const clockifyProd = 'https://clockify.me/tracker';
@@ -107,6 +97,29 @@ aBrowser.commands.onCommand.addListener((command) => {
                 getInProgress(activeWorkspaceId, token)
                     .then(response => response.json())
                     .then(data => {
+                        if (!data.projectId) {
+                            this.getDefaultProject().then(defaultProject => {
+                                if (defaultProject) {
+                                    this.updateProject(defaultProject.id, data.id)
+                                        .then(response => response.json())
+                                        .then(data => {
+                                            this.endInProgress(new Date())
+                                                .then(response => {
+                                                    if (response.status === 400) {
+                                                        alert("You already have entry in progress which can't be saved" +
+                                                            " without project/task/description or tags. Please edit your time entry.");
+                                                    } else {
+                                                        window.inProgress = false;
+                                                        aBrowser.browserAction.setIcon({
+                                                            path: iconPathEnded
+                                                        });
+                                                        aBrowser.runtime.sendMessage({eventName: 'TIME_ENTRY_STOPPED'});
+                                                    }
+                                                });
+                                        });
+                                }
+                            });
+                        }
                         this.endInProgress(new Date())
                             .then(response => {
                                 if (response.status === 400) {
@@ -117,6 +130,7 @@ aBrowser.commands.onCommand.addListener((command) => {
                                     aBrowser.browserAction.setIcon({
                                         path: iconPathEnded
                                     });
+                                    aBrowser.runtime.sendMessage({eventName: 'TIME_ENTRY_STOPPED'});
                                 }
                             });
                     })
@@ -268,6 +282,17 @@ function startTimerWithDescription(info) {
         getInProgress(activeWorkspaceId, token)
             .then(response => response.json())
             .then(data => {
+                if (!data.projectId) {
+                    this.getDefaultProject().then(defaultProject => {
+                        if (defaultProject) {
+                            this.updateProject(defaultProject.id, data.id)
+                                .then(response => response.json())
+                                .then(data => {
+                                    endInProgressAndStartNew(info);
+                                });
+                        }
+                    })
+                }
                 endInProgressAndStartNew(info);
             })
             .catch(error => {
@@ -284,7 +309,8 @@ function loginWithCode(code, state, nonce, redirectUri) {
         method: 'POST',
         headers: new Headers({
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'App-Name': this.createAppName()
         }),
         body: JSON.stringify({
             code: code,
@@ -301,14 +327,11 @@ function loginWithCode(code, state, nonce, redirectUri) {
 function fetchUser(userId) {
     const baseUrl = localStorage.getItem('permanent_baseUrl');
     const userUrl = `${baseUrl}/users/${userId}`;
+    const headers = new Headers(this.createHttpHeaders(localStorage.getItem('token')));
 
     let getUserRequest = new Request(userUrl, {
         method: 'GET',
-        headers: new Headers({
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-Auth-Token': localStorage.getItem('token')
-        })
+        headers: headers
     });
 
     return fetch(getUserRequest).then(response => response.json());
@@ -324,6 +347,8 @@ function endInProgressAndStartNew(info) {
                 if (data.code === 501) {
                     alert("You already have entry in progress which can't be saved without project/task/description or tags. Please edit your time entry.")
                 } else {
+                    this.entryInProgressChangedEventHandler(null);
+                    aBrowser.runtime.sendMessage({eventName: 'TIME_ENTRY_STOPPED'});
                     startTimerBackground(activeWorkspaceId, token, info && info.selectionText ? info.selectionText : "");
                 }
             })
@@ -339,47 +364,49 @@ function startTimerBackground(activeWorkspaceId, token, description) {
     const apiEndpoint = localStorage.getItem('permanent_baseUrl');
     let timeEntryUrl =
         `${apiEndpoint}/workspaces/${activeWorkspaceId}/timeEntries/`;
+    const headers = new Headers(this.createHttpHeaders(token));
 
-    let timeEntryRequest = new Request(timeEntryUrl, {
-        method: 'POST',
-        headers: new Headers({
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-Auth-Token': token
-        }),
-        body: JSON.stringify({
-            start: new Date(),
-            description: description,
-            billable: false,
-            projectId: null,
-            tagIds: [],
-            taskId: null
-        })
+    this.getDefaultProject().then(defaultProject => {
+        let timeEntryRequest = new Request(timeEntryUrl, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({
+                start: new Date(),
+                description: description,
+                billable: false,
+                projectId: defaultProject ? defaultProject.id : null,
+                tagIds: [],
+                taskId: null
+            })
+        });
+
+        fetch(timeEntryRequest)
+            .then(response => response.json())
+            .then(data => {
+                if(!data.message) {
+                    window.inProgress = true;
+                    aBrowser.browserAction.setIcon({
+                        path: iconPathStarted
+                    });
+                    document.timeEntry = data;
+                    this.entryInProgressChangedEventHandler(data);
+                    aBrowser.runtime.sendMessage({eventName: 'TIME_ENTRY_STARTED'});
+                }
+
+            })
+            .catch(error => {
+            })
     });
-
-    fetch(timeEntryRequest)
-        .then(response => response.json())
-        .then(data => {
-            if(!data.message) {
-                window.inProgress = true;
-                aBrowser.browserAction.setIcon({
-                    path: iconPathStarted
-                });
-            }
-
-        })
-        .catch(error => {
-        })
 }
 
 function getInProgress(activeWorkspaceId, token) {
     const apiEndpoint = localStorage.getItem('permanent_baseUrl');
     let inProgressUrl = `${apiEndpoint}/workspaces/${activeWorkspaceId}/timeEntries/inProgress`;
+    const headers = new Headers(this.createHttpHeaders(token));
+
     let timeEntryInProgressRequest = new Request(inProgressUrl, {
         method: 'GET',
-        headers: new Headers({
-            'X-Auth-Token': token
-        })
+        headers: headers
     });
 
     return fetch(timeEntryInProgressRequest);
@@ -465,13 +492,11 @@ function saml2Login(request) {
 function refreshToken(token, tabId) {
     const endpoint = localStorage.getItem('permanent_baseUrl');
     const refreshTokenUrl = `${endpoint}/auth/token/refresh`;
+    const headers = new Headers(this.createHttpHeaders(token));
 
     let refreshTokenRequest = new Request(refreshTokenUrl, {
         method: 'POST',
-        headers: new Headers({
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        }),
+        headers: headers,
         body: JSON.stringify({
             refreshToken: token
         })

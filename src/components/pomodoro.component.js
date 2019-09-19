@@ -71,8 +71,7 @@ class Pomodoro extends React.Component {
         let pomodoroFromStorage = localStorageService.get('pomodoro') ?
             JSON.parse(localStorageService.get('pomodoro')) : [];
         let isEnabled;
-        const pomodoroForCurrentUser =
-            pomodoroFromStorage &&
+        const pomodoroForCurrentUser = pomodoroFromStorage &&
             pomodoroFromStorage.filter(pomodoro => pomodoro.userId === userId).length > 0 ?
                 pomodoroFromStorage.filter(pomodoro => pomodoro.userId === userId)[0] : null;
 
@@ -142,7 +141,7 @@ class Pomodoro extends React.Component {
                 isEnabled = true;
             }
         }
-
+        this.props.changeSaved();
         localStorageService.set(
             'pomodoro',
             JSON.stringify(pomodoroFromStorage),
@@ -151,7 +150,7 @@ class Pomodoro extends React.Component {
 
         if (isAppTypeExtension()) {
             if (isEnabled) {
-                this.sendPomodoroRequest();
+                getBrowser().extension.getBackgroundPage().addPomodoroTimer();
             } else {
                 getBrowser().extension.getBackgroundPage().restartPomodoro();
             }
@@ -190,11 +189,15 @@ class Pomodoro extends React.Component {
             JSON.stringify(pomodoroToSaveInStorage),
             getLocalStorageEnums().PERMANENT_PREFIX
         );
+        this.props.changeSaved();
+        if (isAppTypeExtension()) {
+            getBrowser().extension.getBackgroundPage().addPomodoroTimer();
+        }
     }
 
     changePomodoroPropertyOnEnter(event) {
         if (event.keyCode === getKeyCodes().enter) {
-            this.changePomodoroPropertyOnEnter(event);
+            this.changePomodoroProperty(event);
         }
     }
 
@@ -219,7 +222,7 @@ class Pomodoro extends React.Component {
             JSON.stringify(pomodoroToSaveInStorage),
             getLocalStorageEnums().PERMANENT_PREFIX
         );
-
+        this.props.changeSaved();
         this.setState({
             isSoundNotification: event
         });
@@ -240,7 +243,7 @@ class Pomodoro extends React.Component {
             JSON.stringify(pomodoroToSaveInStorage),
             getLocalStorageEnums().PERMANENT_PREFIX
         );
-
+        this.props.changeSaved();
         this.setState({
             isAutomaticStartStop: event
         });
@@ -261,6 +264,7 @@ class Pomodoro extends React.Component {
             JSON.stringify(pomodoroToSaveInStorage),
             getLocalStorageEnums().PERMANENT_PREFIX
         );
+        this.props.changeSaved();
 
         this.setState({
             isLongBreakEnabled: event
@@ -273,9 +277,10 @@ class Pomodoro extends React.Component {
     render() {
         return(
             <div>
-                <div className={isAppTypeExtension() ? "pomodoro" : "disabled"}>
-                        <div className="pomodoro__checkbox"
-                              onClick={this.togglePomodoro.bind(this)}>
+                <div className={isAppTypeExtension() ? "pomodoro" : "disabled"}
+                     onClick={this.togglePomodoro.bind(this)}>
+                        <div className={this.state.enabled ?
+                            "pomodoro__checkbox checked" : "pomodoro__checkbox"}>
                             <img src="./assets/images/checked.png"
                                  className={this.state.enabled ?
                                      "pomodoro__checkbox--img" :
@@ -297,7 +302,6 @@ class Pomodoro extends React.Component {
                                 <p>minutes</p>
                             </div>
                         </div>
-                        <div className="pomodoro__border"></div>
                         <div className="pomodoro__box__content">
                             <p>Short break</p>
                             <div className="pomodoro__box__content--right_side">
@@ -311,7 +315,8 @@ class Pomodoro extends React.Component {
                         </div>
                         <div className="pomodoro__border"></div>
                         <div className="pomodoro__box__content">
-                            <Switch checked={this.state.isLongBreakEnabled}
+                            <Switch className="pomodoro__switch"
+                                    checked={this.state.isLongBreakEnabled}
                                     onChange={this.toggleLongBreakEnabled.bind(this)}/>
                             <p>Long break</p>
                             <div className="pomodoro__box__content--right_side">
@@ -337,13 +342,15 @@ class Pomodoro extends React.Component {
                         <div className="pomodoro__border"></div>
                         <div className="pomodoro__box__content">
                             <p>Sound notification</p>
-                            <Switch checked={this.state.isSoundNotification}
+                            <Switch className="pomodoro__switch"
+                                    checked={this.state.isSoundNotification}
                                     onChange={this.changeIsSoundNotification.bind(this)}/>
                         </div>
                         <div className="pomodoro__border"></div>
                         <div className="pomodoro__box__content">
                             <p>Automatic breaks</p>
-                            <Switch checked={this.state.isAutomaticStartStop}
+                            <Switch className="pomodoro__switch"
+                                    checked={this.state.isAutomaticStartStop}
                                     onChange={this.changeIsAutomaticStartStop.bind(this)}/>
                         </div>
                     </div>

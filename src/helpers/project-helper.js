@@ -1,10 +1,13 @@
+import {ClientService} from "../services/client-service"; //
 import {ProjectService} from "../services/project-service";
 import {WorkspaceService} from "../services/workspace-service";
 import {getDefaultProjectEnums} from "../enums/default-project.enum";
 import {getWorkspacePermissionsEnums} from "../enums/workspace-permissions.enum";
 import {checkConnection} from "../components/check-connection";
 import {LocalStorageService} from "../services/localStorage-service";
+import {getLocalStorageEnums} from "../enums/local-storage.enum";
 
+const clientService = new ClientService(); //
 const projectService = new ProjectService();
 const workspaceService = new WorkspaceService();
 const localStorageService = new LocalStorageService();
@@ -52,31 +55,32 @@ export class ProjectHelper {
         if (checkConnection()) {
             return Promise.resolve(null);
         }
-        const activeWorkspaceId = localStorage.getItem('activeWorkspaceId');
+        const activeWorkspaceId = localStorageService.get('activeWorkspaceId');
+        const userId = localStorageService.get('userId');
         const defaultProjects = this.getDefaultProjectListFromStorage();
 
         if (defaultProjects && defaultProjects.length === 0) {
             return Promise.resolve(null);
         }
 
-        const defaultProjectForWorkspace =
-            this.filterProjectsByWorkspace(defaultProjects, activeWorkspaceId);
+        const defaultProjectForWorkspaceAndUser =
+            this.filterProjectsByWorkspaceAndUser(defaultProjects, activeWorkspaceId, userId);
 
-        if (!defaultProjectForWorkspace) {
+        if (!defaultProjectForWorkspaceAndUser || !defaultProjectForWorkspaceAndUser.enabled) {
             return Promise.resolve(null);
         }
 
         if (
-            defaultProjectForWorkspace &&
-            defaultProjectForWorkspace.project &&
-            defaultProjectForWorkspace.project.id ===
+            defaultProjectForWorkspaceAndUser &&
+            defaultProjectForWorkspaceAndUser.project &&
+            defaultProjectForWorkspaceAndUser.project.id ===
                 getDefaultProjectEnums().LAST_USED_PROJECT
         ) {
             return this.getLastUsedProjectFromTimeEntries();
         }
 
-        return this.isDefaultProjectAvailableToUser(defaultProjectForWorkspace.project).then(available => {
-            return available ? defaultProjectForWorkspace.project : null;
+        return this.isDefaultProjectAvailableToUser(defaultProjectForWorkspaceAndUser.project).then(available => {
+            return available ? defaultProjectForWorkspaceAndUser.project : null;
         });
     }
 
@@ -92,40 +96,43 @@ export class ProjectHelper {
     }
 
     setDefaultProjectsToStorage(defaultProjects) {
-        localStorage.setItem(
+        localStorageService.set(
             getDefaultProjectEnums().DEFAULT_PROJECTS,
-            JSON.stringify(defaultProjects)
+            JSON.stringify(defaultProjects),
+            getLocalStorageEnums().PERMANENT_PREFIX
         );
     }
 
     getDefaultProjectListFromStorage() {
-        let defaultProjects = localStorage.getItem(getDefaultProjectEnums().DEFAULT_PROJECTS);
+        let defaultProjects = localStorageService.get(getDefaultProjectEnums().DEFAULT_PROJECTS);
 
         return defaultProjects ? JSON.parse(defaultProjects) : [];
     }
 
-    clearDefaultProjectForWorkspace(activeWorkspaceId) {
+    removeDefaultProjectForWorkspaceAndUser(activeWorkspaceId, userId) {
         let defaultProjects = this.getDefaultProjectListFromStorage();
 
-        if (defaultProjects.length > 0) {
-            const defaultProject = this.filterProjectsByWorkspace(defaultProjects, activeWorkspaceId);
+        const defaultProject = this.filterProjectsByWorkspaceAndUser(defaultProjects, activeWorkspaceId, userId);
 
-            if (defaultProject) {
-                defaultProjects.splice(defaultProjects.indexOf(defaultProject), 1);
-                localStorage.setItem(
-                    getDefaultProjectEnums().DEFAULT_PROJECTS,
-                    JSON.stringify(defaultProjects)
-                );
-            }
+        if (defaultProject) {
+            defaultProjects.splice(defaultProjects.indexOf(defaultProject), 1);
+            localStorageService.set(
+                getDefaultProjectEnums().DEFAULT_PROJECTS,
+                JSON.stringify(defaultProjects),
+                getLocalStorageEnums().PERMANENT_PREFIX
+            );
         }
     }
 
-    filterProjectsByWorkspace(defaultProjects, activeWorkspaceId) {
-        return defaultProjects
-            .filter((defProject) => defProject.workspaceId === activeWorkspaceId)[0];
+    filterProjectsByWorkspaceAndUser(defaultProjects, activeWorkspaceId, userId) {
+        return defaultProjects && defaultProjects.filter(defProject =>
+                defProject.workspaceId === activeWorkspaceId && defProject.userId === userId).length > 0 ?
+                defaultProjects.filter(defProject =>
+                    defProject.workspaceId === activeWorkspaceId && defProject.userId === userId)[0] : null;
     }
 
-    getProjectForButton(projectName) {
+    //getProjectForButton(projectName) {
+    getProjectForButton(projectName, clientName) {
         const page = 0;
         const pageSize = 50;
         let projectFilter;
@@ -140,15 +147,39 @@ export class ProjectHelper {
             } else {
                 projectFilter = projectName;
             }
-
-            return projectService.getProjectsWithFilter(projectFilter, page, pageSize).then(response => {
-                if (response && response.data && response.data.length > 0) {
-                    project = response.data.filter(project => project.name === projectName)[0];
-                    return project ? project : this.getDefaultProject();
+            return clientService.getClientsWithFilter(page, pageSize, clientName).then(response => {
+                var client_id
+                if (response && response.data && response.data.length > 0) {                    
+                    client_id = response.data[0].id
                 } else {
-                    return this.getDefaultProject();
+                    client_id = null;
                 }
-            });
+                if (client_id) {                    
+                    return projectService.getProjectsWithFilter(projectFilter, page, pageSize).then(response => {
+                        if (response && response.data && response.data.length > 0) {
+                            project = response.data.filter(project => (project.client != null) && project.name === projectName && project.client.name === clientName)[0];                            
+                            if (typeof(project) === "undefined") {
+                                return projectService.createProject({'name': projectName, 'clientId': client_id, 'color': '#f44336', 'isPublic': 'true'}).then(response2 => {
+                                    return response2.data                                
+                                })                              
+                            } else {
+                                return project ? project : this.getDefaultProject();
+                            }
+                        } else {
+                            return projectService.createProject({'name': projectName, 'clientId': client_id, 'color': '#f44336', 'isPublic': 'true'}).then(response2 => {
+                                return response2.data                                
+                            })
+                            //return this.getDefaultProject();
+                        }
+                    });
+                } else {
+                    return clientService.createClient({'name': clientName}).then(response => {
+                        return projectService.createProject({'name': projectName, 'clientId': response.data.id, 'color': '#f44336', 'isPublic': 'true'}).then(response2 => {
+                            return response2.data                                
+                        })
+                    })
+                }                
+            });            
         } else {
             return this.getDefaultProject();
         }

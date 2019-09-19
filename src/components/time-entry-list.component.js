@@ -39,7 +39,7 @@ class TimeEntryList extends React.Component {
                     disabled={this.props.pullToRefresh}
                     onRefresh={this.handleRefresh.bind(this)}>
                     <div className="no-entries">
-                        <img src="./assets/images/clockify_illustration.svg" className="no-entries-img"/>
+                        <div className="no-entries-img"></div>
                         <span>No recent entries to show</span>
                         <label>It looks like you haven't tracked any time lately.</label>
                     </div>
@@ -51,7 +51,7 @@ class TimeEntryList extends React.Component {
                     disabled={this.props.pullToRefresh}
                     onRefresh={this.handleRefresh.bind(this)}>
                     <div className="no-entries">
-                        <img src="./assets/images/clockify_illustration.svg" className="no-entries-img"/>
+                        <div className="no-entries-img"></div>
                         <span>Get online to see your entries.</span>
                         <label>In the meantime, you can still track time, even if you're offline.</label>
                     </div>
@@ -71,7 +71,10 @@ class TimeEntryList extends React.Component {
                                 <div className="time-entries-list">
                                     <div className="time-entries-list-time">
                                         <span className="time-entries-list-day">{day.split("-")[0]}</span>
-                                        <span className="time-entries-list-total">{day.split("-")[1]}</span>
+                                        <div className="time-entries-total-and-time">
+                                            <span className="time-entries-list-total">Total:</span>
+                                            <span className="time-entries-list-total-time">{day.split("-")[1]}</span>
+                                        </div>
                                     </div>
                                     {this.props.timeEntries.filter(timeEntry => timeEntry.start === day.split("-")[0]).map(timeEntry => {
                                        return (
@@ -84,6 +87,7 @@ class TimeEntryList extends React.Component {
                                                 timeFormat={this.props.timeFormat}
                                                 workspaceSettings={this.props.workspaceSettings}
                                                 isUserOwnerOrAdmin={this.props.isUserOwnerOrAdmin}
+                                                userSettings={this.props.userSettings}
                                            />
                                        )
                                     })}

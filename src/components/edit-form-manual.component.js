@@ -7,13 +7,16 @@ import ProjectList from './project-list.component';
 import TagsList from './tags-list.component';
 import * as ReactDOM from 'react-dom';
 import HomePage from './home-page.component';
-import RequiredFields from './required-fields.component';
 import {checkConnection} from "./check-connection";
 import {ProjectHelper} from "../helpers/project-helper";
 import {TimeEntryService} from "../services/timeEntry-service";
+import DeleteEntryConfirmationComponent from "./delete-entry-confirmation.component";
+import {LocalStorageService} from "../services/localStorage-service";
+import Toaster from "./toaster-component";
 
 const projectHelpers = new ProjectHelper();
 const timeEntryService = new TimeEntryService();
+const localStorageService = new LocalStorageService();
 
 class EditFormManual extends React.Component {
 
@@ -27,7 +30,8 @@ class EditFormManual extends React.Component {
             descRequired: false,
             projectRequired: false,
             taskRequired: false,
-            tagsRequired: false
+            tagsRequired: false,
+            askToDeleteEntry: false
         }
     }
 
@@ -46,8 +50,9 @@ class EditFormManual extends React.Component {
                         });
                     });
             } else {
-                const activeWorkspaceId = localStorage.getItem('activeWorkspaceId');
-                projectHelpers.clearDefaultProjectForWorkspace(activeWorkspaceId);
+                const activeWorkspaceId = localStorageService.get('activeWorkspaceId');
+                const userId = localStorageService.get('userId');
+                projectHelpers.removeDefaultProjectForWorkspaceAndUser(activeWorkspaceId, userId);
                 this.checkRequiredFields();
             }
         });
@@ -98,26 +103,21 @@ class EditFormManual extends React.Component {
 
     }
 
-    changeDuration(duration){
-        if (!duration) {
+    changeDuration(newDuration){
+        if (!newDuration || !this.state.timeEntry.timeInterval.end) {
             return;
         }
 
         let timeEntry = this.state.timeEntry;
 
-        let start = moment()
-            .add(-parseInt(duration.split(':')[0]), 'hours')
-            .add(-parseInt(duration.split(':')[1]), 'minutes')
-            .add(-parseInt(duration.split(':')[2]), 'seconds');
+        let end = moment(this.state.timeEntry.timeInterval.start)
+            .add(parseInt(newDuration.split(':')[0]), 'hours')
+            .add(parseInt(newDuration.split(':')[1]), 'minutes')
+            .add(parseInt(newDuration.split(':')[2]), 'seconds');
 
-        if(this.state.timeEntry.timeInterval.end) {
-            start = moment(this.state.timeEntry.timeInterval.end)
-                .add(-parseInt(duration.split(':')[0]), 'hours')
-                .add(-parseInt(duration.split(':')[1]), 'minutes')
-                .add(-parseInt(duration.split(':')[2]), 'seconds');
-        }
-
-        timeEntry.timeInterval.start = start;
+        timeEntry.timeInterval.end = end;
+        timeEntry.timeInterval.duration =
+            duration(moment(this.state.timeEntry.timeInterval.end).diff(timeEntry.timeInterval.start));
 
         this.setState({
             timeEntry: timeEntry
@@ -125,7 +125,7 @@ class EditFormManual extends React.Component {
             this.setTime();
             this.duration.setState({
                 startTime:  timeEntry.timeInterval.start,
-                endTime: moment(this.state.timeEntry.timeInterval.end)
+                endTime: timeEntry.timeInterval.end
             });
         });
     }
@@ -135,9 +135,8 @@ class EditFormManual extends React.Component {
         timeEntry.description =  event.target.value;
 
         this.setState({
-            timeEntry: timeEntry,
-            descRequired: !!event.target.value ? false : true
-        });
+            timeEntry: timeEntry
+        }, () => this.checkRequiredFields());
     }
 
     editProject(project) {
@@ -145,9 +144,8 @@ class EditFormManual extends React.Component {
         timeEntry.projectId =  project.id;
 
         this.setState({
-            timeEntry: timeEntry,
-            projectRequired: false
-        });
+            timeEntry: timeEntry
+        }, () => this.checkRequiredFields());
     }
 
     editTask(taskId, project) {
@@ -156,10 +154,8 @@ class EditFormManual extends React.Component {
         timeEntry.taskId =  taskId;
 
         this.setState({
-            timeEntry: timeEntry,
-            projectRequired: false,
-            taskRequired: false
-        });
+            timeEntry: timeEntry
+        }, () => this.checkRequiredFields());
     }
 
     editTags(tagId) {
@@ -176,9 +172,8 @@ class EditFormManual extends React.Component {
         timeEntry.tagIds = tagList;
 
         this.setState({
-            timeEntry: timeEntry,
-            tagsRequired: timeEntry.tagIds.length > 0 ? false : true
-        });
+            timeEntry: timeEntry
+        }, () => this.checkRequiredFields());
     }
 
     editBillable() {
@@ -242,14 +237,6 @@ class EditFormManual extends React.Component {
         });
     }
 
-    goToEdit() {
-        ReactDOM.render(
-            <EditFormManual timeEntry={this.state.timeEntry}
-                            workspaceSettings={this.props.workspaceSettings}/>,
-            document.getElementById('mount')
-        );
-    }
-
     done() {
         if (
             this.state.descRequired ||
@@ -310,7 +297,8 @@ class EditFormManual extends React.Component {
         let timeEntry = this.state.timeEntry;
         timeEntry.timeInterval = {
             start: start,
-            end: moment(start).add(duration(this.state.timeEntry.timeInterval.duration))
+            end: moment(start).add(timeEntry.timeInterval.duration),
+            duration: timeEntry.timeInterval.duration
         };
         this.setState({
             timeEntry: timeEntry
@@ -323,6 +311,50 @@ class EditFormManual extends React.Component {
         this.props.changeMode(mode);
     }
 
+    askToDeleteEntry() {
+        this.setState({
+            askToDeleteEntry: true
+        });
+    }
+
+    cancelDeletingEntry() {
+        this.setState({
+            askToDeleteEntry: false
+        });
+    }
+
+    projectListOpened() {
+        this.closeOtherDropdowns('projectList');
+    }
+
+    tagListOpened() {
+        this.closeOtherDropdowns('tagList');
+    }
+
+    closeOtherDropdowns(openedDropdown) {
+        switch(openedDropdown) {
+            case 'projectList':
+                this.tagList.setState({
+                    isOpen: false
+                });
+                break;
+            case 'tagList':
+                this.projectList.setState({
+                    isOpen: false
+                });
+                break;
+        }
+    }
+
+    goBack() {
+        ReactDOM.unmountComponentAtNode(document.getElementById('mount'));
+        ReactDOM.render(<HomePage/>, document.getElementById('mount'));
+    }
+
+    notifyAboutError(message) {
+        this.toaster.toast('error', message, 2);
+    }
+
     render(){
         if(!this.state.ready) {
             return null;
@@ -330,10 +362,18 @@ class EditFormManual extends React.Component {
             return(
                 <div>
                     <Header
-                        showActions={true}
+                        backButton={true}
                         mode={localStorage.getItem('mode')}
                         disableManual={localStorage.getItem('inProgress')}
+                        disableAutomatic={false}
                         changeMode={this.changeMode.bind(this)}
+                        workspaceSettings={JSON.parse(localStorage.getItem('workspaceSettings'))}
+                        goBackTo={this.goBack.bind(this)}
+                    />
+                    <Toaster
+                        ref={instance => {
+                            this.toaster = instance
+                        }}
                     />
                     <Duration
                         ref={instance => {
@@ -349,6 +389,7 @@ class EditFormManual extends React.Component {
                         timeFormat={this.props.timeFormat}
                         isUserOwnerOrAdmin={this.props.isUserOwnerOrAdmin}
                         workspaceSettings={this.props.workspaceSettings}
+                        userSettings={this.props.userSettings}
                     />
                     <div className="edit-form">
                         <div className={this.state.descRequired ?
@@ -361,34 +402,67 @@ class EditFormManual extends React.Component {
                                 onChange={this.setDescription.bind(this)}
                             />
                         </div>
-                        <ProjectList
-                            selectedProject={this.state.timeEntry.projectId}
-                            selectedTask={this.state.timeEntry.taskId}
-                            selectProject={this.editProject.bind(this)}
-                            selectTask={this.editTask.bind(this)}
-                            noTasks={false}
-                            workspaceSettings={this.props.workspaceSettings}
-                            projectRequired={this.state.projectRequired}
-                            taskRequired={this.state.taskRequired}
-                        />
+                        <div className="edit-form__project_list">
+                            <ProjectList
+                                ref={instance => {
+                                    this.projectList = instance;
+                                }}
+                                selectedProject={this.state.timeEntry.projectId}
+                                selectedTask={this.state.timeEntry.taskId}
+                                selectProject={this.editProject.bind(this)}
+                                selectTask={this.editTask.bind(this)}
+                                noTasks={false}
+                                workspaceSettings={this.props.workspaceSettings}
+                                isUserOwnerOrAdmin={this.props.isUserOwnerOrAdmin}
+                                createProject={true}
+                                projectRequired={this.state.projectRequired}
+                                taskRequired={this.state.taskRequired}
+                                projectListOpened={this.projectListOpened.bind(this)}
+                                timeEntry={this.state.timeEntry}
+                                createProject={true}
+                                editForm={false}
+                            />
+                        </div>
                         <TagsList
+                            ref={instance => {
+                                this.tagList = instance;
+                            }}
                             tagIds={this.state.timeEntry.tagIds ? this.state.timeEntry.tagIds : []}
                             editTag={this.editTags.bind(this)}
                             tagsRequired={this.state.tagsRequired}
+                            tagListOpened={this.tagListOpened.bind(this)}
+                            isUserOwnerOrAdmin={this.props.isUserOwnerOrAdmin}
+                            workspaceSettings={this.props.workspaceSettings}
+                            editForm={false}
+                            errorMessage={this.notifyAboutError.bind(this)}
                         />
                         <div className="edit-form-buttons">
-                        <span className="edit-form-checkbox" onClick={this.editBillable.bind(this)}>
-                            <img src="./assets/images/checked.png" className={this.state.timeEntry.billable ? "edit-form-billable-img" : "edit-form-billable-img-hidden"}/>
-                        </span>
-                            <label onClick={this.editBillable.bind(this)} className="edit-form-billable">Billable</label>
-                            <span className="edit-form-right-buttons">
-                            <span onClick={this.deleteEntry.bind(this)} className="edit-form-delete">Delete</span>
-                            <button onClick={this.done.bind(this)}
-                                    className={
-                                        this.state.descRequired || this.state.projectRequired ||
-                                        this.state.taskRequired || this.state.tagsRequired ?
-                                            "edit-form-done-disabled" : "edit-form-done"}>OK</button>
-                        </span>
+                            <div className="edit-form-buttons__billable">
+                                <span className={this.state.timeEntry.billable ?
+                                    "edit-form-checkbox checked" : "edit-form-checkbox"}
+                                      onClick={this.editBillable.bind(this)}>
+                                    <img src="./assets/images/checked.png"
+                                         className={this.state.timeEntry.billable ?
+                                             "edit-form-billable-img" : "edit-form-billable-img-hidden"}/>
+                                </span>
+                                <label onClick={this.editBillable.bind(this)}
+                                       className="edit-form-billable">Billable</label>
+                            </div>
+                            <hr/>
+                            <div className="edit-form-right-buttons">
+                                <button onClick={this.done.bind(this)}
+                                        className={
+                                            this.state.descRequired || this.state.projectRequired ||
+                                            this.state.taskRequired || this.state.tagsRequired ?
+                                                "edit-form-done-disabled" : "edit-form-done"}>OK</button>
+                                <div className="edit-form-right-buttons__back_and_delete">
+                                    <span onClick={this.askToDeleteEntry.bind(this)}
+                                          className="edit-form-delete">Delete</span>
+                                </div>
+                                <DeleteEntryConfirmationComponent askToDeleteEntry={this.state.askToDeleteEntry}
+                                                                  canceled={this.cancelDeletingEntry.bind(this)}
+                                                                  confirmed={this.deleteEntry.bind(this)}/>
+                            </div>
                         </div>
                     </div>
                 </div>

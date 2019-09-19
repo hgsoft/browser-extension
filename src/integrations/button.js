@@ -1,6 +1,5 @@
 const aBrowser = chrome || browser;
 var clockifyButton = {
-
     links: [],
     inProgressDescription: "",
     beforeRender: (next) => {
@@ -45,13 +44,14 @@ var clockifyButton = {
             renderer(element);
         }
     },
-    createButton: (description, project) => {
+    //createButton: (description, project) => {        
+    createButton: (description, project, client) => {
         const button = document.createElement('a');
         let title = invokeIfFunction(description);
         let active = title && title === clockifyButton.inProgressDescription;
         const projectName = !!project ? project : null;
-
-        setButtonProperties(button, title, active);
+    
+        setButtonProperties(button, title, active);        
 
         button.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -67,13 +67,17 @@ var clockifyButton = {
                         clockifyButton.inProgressDescription = null;
                         active = false;
                         setButtonProperties(button, title, active);
+                        aBrowser.storage.sync.set({
+                            timeEntryInProgress: null
+                        });
                     }
                 });
             } else {
                 aBrowser.runtime.sendMessage({
                     eventName: 'startWithDescription',
                     description: title,
-                    project: projectName
+                    project: projectName,
+                    client: client //
                 }, (response) => {
                     if (response.status === 400) {
                         alert("Can't end entry without project/task/description or tags.Please edit your time entry.");
@@ -81,6 +85,9 @@ var clockifyButton = {
                         active = true;
                         setButtonProperties(button, title, active);
                         clockifyButton.inProgressDescription = title;
+                        aBrowser.storage.sync.set({
+                            timeEntryInProgress: response.data
+                        });
                     }
                 });
             }
@@ -107,6 +114,9 @@ var clockifyButton = {
                         clockifyButton.inProgressDescription = null;
                         active = false;
                         setButtonProperties(button, title, active);
+                        aBrowser.storage.sync.set({
+                            timeEntryInProgress: null
+                        });
                     }
                 });
             } else {
@@ -121,6 +131,9 @@ var clockifyButton = {
                         active = true;
                         setButtonProperties(button, title, active);
                         clockifyButton.inProgressDescription = title;
+                        aBrowser.storage.sync.set({
+                            timeEntryInProgress: response.data
+                        });
                     }
                 });
             }
@@ -167,12 +180,18 @@ function setButtonProperties(button, title, active) {
         button.classList.add('clockify-button-active');
         if (!button.classList.contains('small')) {
             button.textContent = 'Stop timer';
+            button.setAttribute('id', 'clockifyButton');
+        } else {
+            button.setAttribute('id', 'clockifySmallButton');
         }
     } else {
         button.classList.remove('clockify-button-active');
         button.classList.add('clockify-button-inactive');
         if (!button.classList.contains('small')) {
             button.textContent = 'Start timer';
+            button.setAttribute('id', 'clockifyButton');
+        } else {
+            button.setAttribute('id', 'clockifySmallButton');
         }
     }
 }

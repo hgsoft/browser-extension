@@ -2,11 +2,12 @@ import {TokenService} from "../services/token-service";
 import * as React from 'react';
 import {ProjectHelper} from "./project-helper";
 import {LocalStorageService} from "../services/localStorage-service";
-
+import {HttpHeadersHelper} from "./http-headers-helper";
 
 const localStorageService = new LocalStorageService();
 const tokenService = new TokenService();
 const projectHelpers = new ProjectHelper();
+const httpHeadersHelper = new HttpHeadersHelper();
 
 export function getEntryInProgress() {
     const activeWorkspaceId = localStorageService.get('activeWorkspaceId');
@@ -42,7 +43,8 @@ export function stopInProgress() {
     });
 }
 
-export function startTimer(description, projectName) {
+//export function startTimer(description, projectName) {
+export function startTimer(description, projectName, clientName) {
     const activeWorkspaceId = localStorageService.get('activeWorkspaceId');
     const baseUrl = localStorageService.get('baseUrl');
     let timeEntryUrl =
@@ -50,7 +52,8 @@ export function startTimer(description, projectName) {
 
     return tokenService.getToken().then(token => {
         if (token) {
-            return startTimeEntryRequestAndFetch(timeEntryUrl, token, description, projectName);
+            //return startTimeEntryRequestAndFetch(timeEntryUrl, token, description, projectName);
+            return startTimeEntryRequestAndFetch(timeEntryUrl, token, description, projectName, clientName);
         } else {
             tokenService.logout();
             return new Promise((resolve, reject) => {
@@ -61,11 +64,10 @@ export function startTimer(description, projectName) {
 }
 
 function createInProgressUrlAndFetch (inProgressUrl, token) {
+    const headers =  new Headers(httpHeadersHelper.createHttpHeaders(token));
     let timeEntryInProgressRequest = new Request(inProgressUrl, {
         method: 'GET',
-        headers: new Headers({
-            'X-Auth-Token': token
-        })
+        headers: headers
     });
     return fetch(timeEntryInProgressRequest)
         .then(response => response.json())
@@ -75,12 +77,10 @@ function createInProgressUrlAndFetch (inProgressUrl, token) {
 }
 
 function createStopInProgressUrlAndFetch (endInProgressUrl, token) {
+    const headers =  new Headers(httpHeadersHelper.createHttpHeaders(token));
     let endRequest = new Request(endInProgressUrl, {
         method: 'PUT',
-        headers: new Headers({
-            'X-Auth-Token': token,
-            'Content-Type': 'application/json',
-        }),
+        headers: headers,
         body: JSON.stringify({
             end: new Date()
         })
@@ -90,16 +90,14 @@ function createStopInProgressUrlAndFetch (endInProgressUrl, token) {
         .then(response => response);
 }
 
-async function startTimeEntryRequestAndFetch (timeEntryUrl, token, description, projectName) {
-    const project = await projectHelpers.getProjectForButton(projectName);
-
+//async function startTimeEntryRequestAndFetch (timeEntryUrl, token, description, projectName) {
+async function startTimeEntryRequestAndFetch (timeEntryUrl, token, description, projectName, clientName) {
+    const headers =  new Headers(httpHeadersHelper.createHttpHeaders(token));
+    //const project = await projectHelpers.getProjectForButton(projectName);
+    const project = await projectHelpers.getProjectForButton(projectName, clientName);
     const timeEntryRequest = new Request(timeEntryUrl, {
         method: 'POST',
-        headers: new Headers({
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'X-Auth-Token': token
-        }),
+        headers: headers,
         body: JSON.stringify({
             start: new Date(),
             description: description,
