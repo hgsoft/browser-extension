@@ -86,6 +86,7 @@ function disconnectWebSocket() {
 }
 
 function messageHandler(event) {
+    //alert('messageHandler') //
     switch (event.data) {
         case webSocketEventsEnums.TIME_ENTRY_STARTED:
             this.getEntryInProgress().then(response => response.json()).then(data => {
@@ -156,12 +157,22 @@ function authenticate(token) {
 }
 
 aBrowser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    //alert('OnMessage' +'\n'+ request.eventName) //
     switch (request.eventName) {
         case "webSocketConnect":
             if (!connection) {
+                //alert('Connecting...') //
                 this.connectWebSocket();
             }
             break;
+        //
+        case "startWithDescription":
+            if (!connection) {
+                //alert('Connecting...') //
+                this.connectWebSocket();
+            }
+            break;            
+        //
         case "webSocketDisconnect":
             if (connection) {
                 this.disconnectWebSocket();

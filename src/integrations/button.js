@@ -49,10 +49,8 @@ var clockifyButton = {
         const button = document.createElement('a');
         let title = invokeIfFunction(description);
         let active = title && title === clockifyButton.inProgressDescription;
-        const projectName = !!project ? project : null;
-    
-        setButtonProperties(button, title, active);        
-
+        const projectName = !!project ? project : null;    
+        setButtonProperties(button, title, active);
         button.addEventListener('click', (e) => {
             e.stopPropagation();
         });
@@ -73,6 +71,9 @@ var clockifyButton = {
                     }
                 });
             } else {
+                
+                //
+                
                 aBrowser.runtime.sendMessage({
                     eventName: 'startWithDescription',
                     description: title,
@@ -97,7 +98,9 @@ var clockifyButton = {
         return button;
     },
 
-    createSmallButton: (description, project) => {
+    //createSmallButton: (description, project) => {
+    createSmallButton: (description, project, client) => {
+        alert('SMALL BUTTON' +'\n'+ description +'\n'+ project +'\n'+ client) //
         const button = document.createElement('a');
         let title = invokeIfFunction(description);
         let active = clockifyButton.inProgressDescription === title;
@@ -123,7 +126,8 @@ var clockifyButton = {
                 aBrowser.runtime.sendMessage({
                     eventName: 'startWithDescription',
                     description: title,
-                    project: projectName
+                    project: projectName,
+                    client: client //
                 }, (response) => {
                     if (response.status === 400) {
                         alert("Can't end entry without project/task/description or tags.Please edit your time entry.");
@@ -214,6 +218,7 @@ function updateButtonState(entry) {
 
 aBrowser.storage.onChanged.addListener((changes, area) => {
     const changedItems = Object.keys(changes);
+    //alert("CHANGE: " +'\n'+ changedItems +'\n'+ changes +'\n'+ area)//
 
     if (changedItems.filter(item => item === 'timeEntryInProgress').length > 0) {
         aBrowser.storage.sync.get(['timeEntryInProgress'], (result) => {

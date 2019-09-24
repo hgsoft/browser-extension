@@ -25,14 +25,20 @@ export class Extension {
     }
 
     afterLoad() {
+        //alert('afterLoad') //
+        
         getBrowser().storage.sync.get(
             ['token', 'activeWorkspaceId', 'userId', 'userEmail',
                 'weekStart', 'timeZone', 'refreshToken', 'userSettings'], (result) => {
+                
+                //alert(result.token +'\n'+ result.activeWorkspaceId +'\n'+ result.userId +'\n'+ result.userEmail +'\n'+ result.refreshToken +'\n'+ result.userSettings) //
+                    
                 const mountHtmlElem = document.getElementById('mount');
                 if (mountHtmlElem) {
                     mountHtmlElem.style.width = '360px';
                     mountHtmlElem.style.minHeight = '430px';
                 }
+                //alert(mountHtmlElem) //
 
                 if (result.userId) {
                     if (!JSON.parse(localStorageService.get('offline'))) {
@@ -72,6 +78,8 @@ export class Extension {
             const baseUrl = localStorageService.get('baseUrl');
             let clientUrl = this.setHomeUrlFromBaseUrl(baseUrl);
             const clockifyTabs = tabs.filter(tab => tab.url && tab.url.includes(clientUrl));
+            
+            //alert(clockifyTabs.length) //
 
             if (!clockifyTabs.length) {
                 return;
@@ -127,9 +135,11 @@ export class Extension {
         getBrowser().runtime.onMessage.addListener((request, sender, sendResponse) => {            
             switch (request.eventName) {
                 case 'endInProgress':
+                    //alert("END IN PROGRESS" +'\n'+ sendResponse) //
                     this.stopEntryInProgress(sendResponse);
                     break;
                 case 'startWithDescription':
+                    //alert("START WITH PROGRESS" +'\n'+ request +'\n'+ sendResponse) //
                     this.startNewEntry(request, sendResponse);
                     break;
             }
@@ -138,6 +148,7 @@ export class Extension {
     }
 
     stopEntryInProgress(sendResponse) {
+        //alert('STOP FROM SITE')
         stopInProgress().then((response) => {
             if (response.status !== 400) {
                 if (isAppTypeExtension) {

@@ -31,6 +31,7 @@ export class Application {
         switch (this.appType) {
             case getAppTypes().EXTENSION:
                 extension.setIcon(iconStatus);
+                //alert(iconStatus)//
                 break;
         }
     }

@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
         application = new Application(appType);
     }
 
+    //alert(appType +'\n'+ application)//
+    
     localStorage.setItem('timeZone', moment.tz.guess());
 
     application.afterLoad();

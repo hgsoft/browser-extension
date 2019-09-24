@@ -242,6 +242,7 @@ class StartTimer extends React.Component {
     }
 
     stopEntryInProgress() {
+        alert('stopEntryInProgress -> FROM EXTENSION ICON') //
         if(checkConnection()) {
             const timeEntriesOffline = localStorage.getItem('timeEntriesOffline') ? JSON.parse(localStorage.getItem('timeEntriesOffline')) : [];
             let timeEntryOffline = localStorage.getItem('timeEntryInOffline') ? JSON.parse(localStorage.getItem('timeEntryInOffline')) : null;

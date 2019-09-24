@@ -18,7 +18,8 @@ import {WorkspaceService} from "../services/workspace-service";
 import {ProjectService} from "../services/project-service";
 import {getBrowser} from "../helpers/browser-helper";
 import {isAppTypeExtension} from "../helpers/app-types-helper";
-import {getWebSocketEventsEnums} from "../enums/web-socket-events.enum";
+import {
+} from "../enums/web-socket-events.enum";
 import {WebSocketClient} from "../web-socket/web-socket-client";
 import {LocalStorageService} from "../services/localStorage-service";
 import {getWorkspacePermissionsEnums} from "../enums/workspace-permissions.enum";
@@ -140,6 +141,7 @@ class HomePage extends React.Component {
 
     webSocketMessagesHandler() {
         websocketHandlerListener = (request, sender, sendResponse) => {
+            //alert('getWebSocketEventsEnums') //
             if (messages.includes(request.eventName)) {
                 this.setState({
                     mode: 'timer',
